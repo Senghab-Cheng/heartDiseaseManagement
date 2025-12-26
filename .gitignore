@@ -1,0 +1,21 @@
+# Ignore Virtual Environments
+.venv/
+env/
+venv/
+
+# Ignore Python Cache
+__pycache__/
+*.py[cod]
+
+# Ignore Local Database Files
+*.db
+*.sqlite3
+
+# Ignore Secrets and Environment Variables
+.env
+.streamlit/secrets.toml
+
+# Ignore System Files
+.DS_Store
+
+.idea/
