@@ -161,8 +161,11 @@ def save_blood_pressure(user_id, systolic, diastolic, heart_rate=None, notes='')
             # PostgreSQL
             print("Using PostgreSQL for BP save")
             c = conn.cursor()
-            c.execute("INSERT INTO blood_pressure (user_id, systolic, diastolic, heart_rate, notes) VALUES (%s, %s, %s, %s, %s)",
-                      (str(user_id), systolic, diastolic, heart_rate, notes))
+            # Add 'timestamp' to the columns and 'now()' to the values
+            c.execute("""
+                INSERT INTO blood_pressure (user_id, systolic, diastolic, heart_rate, notes, timestamp) 
+                VALUES (%s, %s, %s, %s, %s, NOW())
+            """, (str(user_id), systolic, diastolic, heart_rate, notes))
             conn.commit()
             conn.close()
             print("BP saved successfully to PostgreSQL")
