@@ -4,12 +4,15 @@ import re
 from datetime import datetime
 from utils.database import (get_connection, save_blood_pressure, save_activity,
                            save_cholesterol, save_chat_message, get_weekly_bp_summary,
-                           load_chat_history)
+                           load_chat_history, init_db)
 
 # --- Authentication Check ---
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.error("Please log in first!")
     st.stop()
+
+# Initialize database
+init_db()
 
 # --- Database Helper Functions ---
 

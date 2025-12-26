@@ -10,9 +10,9 @@ import pandas as pd
 load_dotenv()
 
 def get_connection():
-    """Get PostgreSQL connection for shared data"""
+    """Get database connection - tries PostgreSQL first, falls back to SQLite"""
     try:
-        # Default to local PostgreSQL if no env vars
+        # Try PostgreSQL first
         conn = psycopg2.connect(
             host=os.getenv('DB_HOST', 'localhost'),
             database=os.getenv('DB_NAME', 'heart_disease'),
@@ -20,64 +20,91 @@ def get_connection():
             password=os.getenv('DB_PASSWORD', 'password'),
             port=os.getenv('DB_PORT', '5432')
         )
+        print("Connected to PostgreSQL")
         return conn
     except Exception as e:
-        print(f"Database connection error: {e}")
-        # Fallback to SQLite if PostgreSQL fails
-        return sqlite3.connect('Heart_Disease_Manager.db')
+        print(f"PostgreSQL connection failed: {e}, falling back to SQLite")
+        # Fallback to SQLite
+        try:
+            conn = sqlite3.connect('Heart_Disease_Manager.db')
+            print("Connected to SQLite")
+            return conn
+        except Exception as e2:
+            print(f"SQLite connection also failed: {e2}")
+            return None
 
 def init_db():
     """Initialize SQLite database for local user data"""
-    conn = sqlite3.connect('Heart_Disease_Manager.db')
-    c = conn.cursor()
+    try:
+        print("Initializing database...")
+        conn = sqlite3.connect('Heart_Disease_Manager.db')
+        c = conn.cursor()
 
-    # Create users table
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  username TEXT UNIQUE NOT NULL,
-                  password TEXT NOT NULL,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        # Create users table
+        c.execute('''CREATE TABLE IF NOT EXISTS users
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      username TEXT UNIQUE NOT NULL,
+                      password TEXT NOT NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
-    # Create blood_pressure table
-    c.execute('''CREATE TABLE IF NOT EXISTS blood_pressure
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id INTEGER NOT NULL,
-                  systolic INTEGER NOT NULL,
-                  diastolic INTEGER NOT NULL,
-                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (user_id) REFERENCES users (id))''')
+        # Create blood_pressure table
+        c.execute('''CREATE TABLE IF NOT EXISTS blood_pressure
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id TEXT NOT NULL,
+                      systolic INTEGER NOT NULL,
+                      diastolic INTEGER NOT NULL,
+                      heart_rate INTEGER,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      notes TEXT)''')
 
-    # Create activities table
-    c.execute('''CREATE TABLE IF NOT EXISTS activities
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id INTEGER NOT NULL,
-                  activity_type TEXT NOT NULL,
-                  duration INTEGER NOT NULL,
-                  calories INTEGER,
-                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (user_id) REFERENCES users (id))''')
+        # Create activities table
+        c.execute('''CREATE TABLE IF NOT EXISTS activities
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id TEXT NOT NULL,
+                      activity_type TEXT NOT NULL,
+                      duration INTEGER NOT NULL,
+                      intensity TEXT DEFAULT 'Moderate',
+                      calories INTEGER,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      notes TEXT)''')
 
-    # Create predictions_history table
-    c.execute('''CREATE TABLE IF NOT EXISTS predictions_history
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id TEXT NOT NULL,
-                  age INTEGER,
-                  cholesterol INTEGER,
-                  resting_bp_s INTEGER,
-                  predicted_target INTEGER,
-                  probability REAL,
-                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        # Create predictions_history table
+        c.execute('''CREATE TABLE IF NOT EXISTS predictions_history
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id TEXT NOT NULL,
+                      age INTEGER,
+                      cholesterol INTEGER,
+                      resting_bp_s INTEGER,
+                      predicted_target INTEGER,
+                      probability REAL,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
-    # Create chat_history table for health assistant
-    c.execute('''CREATE TABLE IF NOT EXISTS chat_history
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id TEXT NOT NULL,
-                  role TEXT NOT NULL,
-                  message TEXT NOT NULL,
-                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        # Create chat_history table for health assistant
+        c.execute('''CREATE TABLE IF NOT EXISTS chat_history
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id TEXT NOT NULL,
+                      role TEXT NOT NULL,
+                      message TEXT NOT NULL,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
-    conn.commit()
-    conn.close()
+        # Create cholesterol_readings table
+        c.execute('''CREATE TABLE IF NOT EXISTS cholesterol_readings
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id TEXT NOT NULL,
+                      total_cholesterol INTEGER,
+                      ldl INTEGER,
+                      hdl INTEGER,
+                      triglycerides INTEGER,
+                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      notes TEXT)''')
+
+        conn.commit()
+        conn.close()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+        import traceback
+        traceback.print_exc()
 
 def verify_user(username, password):
     """Verify user credentials"""
@@ -115,24 +142,35 @@ def create_user(username, password):
 def save_blood_pressure(user_id, systolic, diastolic, heart_rate=None, notes=''):
     """Save blood pressure reading - works with both SQLite and PostgreSQL"""
     try:
+        print(f"Attempting to save BP: {systolic}/{diastolic} for user {user_id}")
         conn = get_connection()
+        if conn is None:
+            print("Database connection failed")
+            return False
+
         if isinstance(conn, sqlite3.Connection):
             # SQLite
+            print("Using SQLite for BP save")
             c = conn.cursor()
             c.execute("INSERT INTO blood_pressure (user_id, systolic, diastolic, heart_rate, timestamp, notes) VALUES (?, ?, ?, ?, ?, ?)",
                       (str(user_id), systolic, diastolic, heart_rate, datetime.now(), notes))
             conn.commit()
             conn.close()
+            print("BP saved successfully to SQLite")
         else:
             # PostgreSQL
+            print("Using PostgreSQL for BP save")
             c = conn.cursor()
             c.execute("INSERT INTO blood_pressure (user_id, systolic, diastolic, heart_rate, notes) VALUES (%s, %s, %s, %s, %s)",
                       (str(user_id), systolic, diastolic, heart_rate, notes))
             conn.commit()
             conn.close()
+            print("BP saved successfully to PostgreSQL")
         return True
     except Exception as e:
         print(f"Error saving blood pressure: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def save_activity(user_id, activity_type, duration, intensity, calories=None, notes=''):
