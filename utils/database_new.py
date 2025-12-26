@@ -43,18 +43,6 @@ def init_db():
             conn.close()
         except Exception as e:
             st.error(f"Error creating tables: {e}")
-def verify_user(username, password):
-    conn = get_connection()
-    if conn:
-        cur = conn.cursor()
-        hashed_pw = hash_password(password)
-        cur.execute("SELECT id FROM users WHERE username = %s AND password = %s", (username, hashed_pw))
-        user = cur.fetchone()
-        cur.close()
-        conn.close()
-        if user:
-            return True, user[0]
-    return False, None
 
 def create_user(username, password):
     conn = get_connection()
@@ -71,6 +59,19 @@ def create_user(username, password):
         except Exception as e:
             return False, str(e)
     return False, "No connection"
+
+def verify_user(username, password):
+    conn = get_connection()
+    if conn:
+        cur = conn.cursor()
+        hashed_pw = hash_password(password)
+        cur.execute("SELECT id FROM users WHERE username = %s AND password = %s", (username, hashed_pw))
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+        if user:
+            return True, user[0]
+    return False, None
 
 def save_prediction(username, prediction, details):
     conn = get_connection()
