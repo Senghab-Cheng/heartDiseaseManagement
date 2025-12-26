@@ -4,19 +4,18 @@ import numpy as np
 import os
 import base64
 from datetime import datetime, timedelta
-from utils.database import init_db, verify_user, create_user, get_prediction_history
 import sys
-import os
 
 # Function to convert image to base64 for HTML display
 def get_base64_image(image_path):
     """Convert image file to base64 string for HTML embedding"""
     try:
-        with open(image_path, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
-        return encoded_string
+        if os.path.exists(image_path):
+            with open(image_path, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode()
+            return encoded_string
+        return ""
     except Exception as e:
-        st.error(f"Error loading image: {e}")
         return ""
 
 # This tells Python to look in the current folder for the 'utils' module
@@ -72,14 +71,15 @@ if 'username' not in st.session_state:
 
 def login_ui():
     """Handles the Login/Signup views."""
-    # Display the logo perfectly centered using Streamlit columns
     empty1, col1, empty2 = st.columns([1, 2, 1])
     with col1:
-        st.markdown("""
-        <div style="text-align: center; padding: 1rem;">
-            <img src="data:image/png;base64,{}" style="width: 130px; height: auto; display: block; margin: 0 auto;">
-        </div>
-        """.format(get_base64_image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
+        logo_b64 = get_base64_image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")
+        if logo_b64:
+            st.markdown(f"""
+            <div style="text-align: center; padding: 1rem;">
+                <img src="data:image/png;base64,{logo_b64}" style="width: 130px; height: auto; display: block; margin: 0 auto;">
+            </div>
+            """, unsafe_allow_html=True)
 
     st.markdown('<p class="main-header">Welcome to Cambodia Health Innovation</p>', unsafe_allow_html=True)
     st.info("Please Log In or Sign Up to access the health management system.")
@@ -140,12 +140,13 @@ if not st.session_state.logged_in:
 
 # Logout Sidebar
 with st.sidebar:
-    # Display logo perfectly centered in sidebar
-    st.markdown("""
-    <div style="text-align: center; margin-bottom: 2.5rem; padding: 1rem;">
-        <img src="data:image/png;base64,{}" style="width: 110px; height: auto; display: block; margin: 0 auto;">
-    </div>
-    """.format(get_base64_image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
+    logo_b64_sidebar = get_base64_image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")
+    if logo_b64_sidebar:
+        st.markdown(f"""
+        <div style="text-align: center; margin-bottom: 2.5rem; padding: 1rem;">
+            <img src="data:image/png;base64,{logo_b64_sidebar}" style="width: 110px; height: auto; display: block; margin: 0 auto;">
+        </div>
+        """, unsafe_allow_html=True)
 
     st.title("Heart Health Management")
     st.write(f"Logged in as: **{st.session_state.username}**")
@@ -194,10 +195,9 @@ data = get_prediction_history(st.session_state.user_id)
 if data:
     try:
         # 2. Convert list of tuples to DataFrame
-        # Based on your data: Index 0 = Result, Index 1 = Probability, Index 2 = Timestamp
         df = pd.DataFrame(data, columns=['Result', 'Probability', 'Date'])
         
-        # 3. Clean the Date (CRITICAL: Stripping the timezone for Plotly)
+        # 3. Clean the Date
         df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
         
         # 4. Create the chart
@@ -211,7 +211,7 @@ if data:
             template="plotly_white"
         )
         
-        # 5. Format the look (No emojis)
+        # 5. Format the look
         fig.update_layout(
             yaxis_title="Risk Probability (0.0 - 1.0)",
             xaxis_title="Assessment Date",
@@ -223,15 +223,6 @@ if data:
         
     except Exception as e:
         st.error(f"Error rendering chart: {e}")
-        # Fallback: Show a simple table if the chart still has issues
         st.table(df.tail())
 else:
     st.info("No assessment history found. Please complete a Risk Assessment first.")
-
-try:
-    from utils.database import get_prediction_history
-    raw_data = get_prediction_history(st.session_state.user_id)
-    st.write(f"Raw Data found in Database: {raw_data}")
-except Exception as e:
-    st.error(f"Debug Error: {e}")
-st.write("------------------")
