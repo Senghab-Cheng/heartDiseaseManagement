@@ -5,6 +5,14 @@ import numpy as np
 import os
 from datetime import datetime, timedelta
 from utils.database import init_db, verify_user, create_user, get_prediction_history
+import sys
+import os
+
+# This tells Python to look in the current folder for the 'utils' module
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Now your existing import will work
+from utils.database import init_db, verify_user, create_user, get_prediction_history
 
 # Page configuration MUST be first
 st.set_page_config(
