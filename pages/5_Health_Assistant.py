@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 import re
 from datetime import datetime
-from utils.database import get_connection
+from utils.database import (get_connection, save_blood_pressure, save_activity,
+                           save_cholesterol, save_chat_message, get_weekly_bp_summary,
+                           load_chat_history)
 
 # --- Authentication Check ---
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
@@ -12,79 +14,11 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
 # --- Database Helper Functions ---
 
 def ensure_tables_exist():
-    """Ensure all required tables exist in Supabase/Postgres"""
-    try:
-        conn = get_connection()
-        c = conn.cursor()
-        
-        tables = {
-            "blood_pressure": "(id SERIAL PRIMARY KEY, user_id TEXT NOT NULL, systolic INTEGER NOT NULL, diastolic INTEGER NOT NULL, heart_rate INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, notes TEXT)",
-            "activities": "(id SERIAL PRIMARY KEY, user_id TEXT NOT NULL, activity_type TEXT NOT NULL, duration REAL NOT NULL, intensity TEXT NOT NULL, calories REAL NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, notes TEXT)",
-            "chat_history": "(id SERIAL PRIMARY KEY, user_id TEXT NOT NULL, role TEXT NOT NULL, message TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
-            "cholesterol_readings": "(id SERIAL PRIMARY KEY, user_id TEXT NOT NULL, total_cholesterol INTEGER, ldl INTEGER, hdl INTEGER, triglycerides INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, notes TEXT)"
-        }
-        
-        for table_name, schema in tables.items():
-            c.execute(f"CREATE TABLE IF NOT EXISTS {table_name} {schema}")
-        
-        conn.commit()
-        c.close()
-        conn.close()
-    except Exception as e:
-        st.error(f"Table Creation Error: {e}")
+    """Ensure all required tables exist"""
+    # Tables are now created in init_db() in database.py
+    pass
 
 # --- Data Saving Functions ---
-
-def save_blood_pressure(user_id, systolic, diastolic, heart_rate=None, notes=''):
-    try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("INSERT INTO blood_pressure (user_id, systolic, diastolic, heart_rate, notes) VALUES (%s, %s, %s, %s, %s)",
-                  (str(user_id), systolic, diastolic, heart_rate, notes))
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        st.error(f"Save BP Error: {e}")
-        return False
-
-def save_activity(user_id, activity_type, duration, intensity, calories=None, notes=''):
-    try:
-        if calories is None:
-            mult = {'Light': 3, 'Moderate': 5, 'Vigorous': 8}
-            calories = duration * mult.get(intensity, 5)
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("INSERT INTO activities (user_id, activity_type, duration, intensity, calories, notes) VALUES (%s, %s, %s, %s, %s, %s)",
-                  (str(user_id), activity_type, duration, intensity, calories, notes))
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        st.error(f"Save Activity Error: {e}")
-        return False
-
-def save_cholesterol(user_id, total_chol, ldl=None, hdl=None, triglycerides=None, notes=''):
-    try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("INSERT INTO cholesterol_readings (user_id, total_cholesterol, ldl, hdl, triglycerides, notes) VALUES (%s, %s, %s, %s, %s, %s)",
-                  (str(user_id), total_chol, ldl, hdl, triglycerides, notes))
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        st.error(f"Save Cholesterol Error: {e}")
-        return False
-
-def save_chat_message(user_id, role, message):
-    try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("INSERT INTO chat_history (user_id, role, message) VALUES (%s, %s, %s)", (str(user_id), role, message))
-        conn.commit()
-        conn.close()
-    except: pass
 
 # --- Logic Processing Functions ---
 
@@ -116,19 +50,12 @@ def process_cholesterol(user_input, user_id):
     return "Please provide a number for your cholesterol."
 
 def process_status_check(user_id):
-    try:
-        conn = get_connection()
-        df = pd.read_sql_query("""
-            SELECT AVG(systolic) as s, AVG(diastolic) as d 
-            FROM blood_pressure 
-            WHERE user_id = %s AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '7 days'
-        """, conn, params=(str(user_id),))
-        conn.close()
-        if not df.empty and df['s'].iloc[0]:
-            return f"**Weekly Summary:** Your average BP is **{df['s'].iloc[0]:.0f}/{df['d'].iloc[0]:.0f} mmHg**."
-        return "No data found for the last 7 days. Start logging to see your summary!"
-    except Exception as e: 
-        return f"Error fetching status: {e}"
+    df = get_weekly_bp_summary(user_id)
+    if not df.empty and len(df) > 0 and df['systolic_avg'].iloc[0] and not pd.isna(df['systolic_avg'].iloc[0]):
+        systolic = df['systolic_avg'].iloc[0]
+        diastolic = df['diastolic_avg'].iloc[0]
+        return f"**Weekly Summary:** Your average BP is **{systolic:.0f}/{diastolic:.0f} mmHg**."
+    return "No data found for the last 7 days. Start logging to see your summary!"
 
 def process_user_input(user_input, user_id):
     inp = user_input.lower()
@@ -142,14 +69,6 @@ def process_user_input(user_input, user_id):
         return process_status_check(user_id)
     
     return "I can log your BP (120/80), activities (walked 20 min), or cholesterol. How can I help?"
-
-def load_chat_history(user_id):
-    try:
-        conn = get_connection()
-        df = pd.read_sql_query("SELECT role, message as content FROM chat_history WHERE user_id = %s ORDER BY timestamp ASC LIMIT 20", conn, params=(str(user_id),))
-        conn.close()
-        return df.to_dict('records')
-    except: return []
 
 # --- UI Helper ---
 
@@ -173,7 +92,8 @@ def render():
     display_guide()
     
     if 'chat_history' not in st.session_state:
-        st.session_state.chat_history = load_chat_history(st.session_state.user_id)
+        chat_df = load_chat_history(st.session_state.user_id)
+        st.session_state.chat_history = chat_df.to_dict('records') if not chat_df.empty else []
         if not st.session_state.chat_history:
             st.session_state.chat_history = [{"role": "assistant", "content": "Hi! I'm your Heart Assistant. How can I help you track your health today?"}]
 

@@ -3,6 +3,8 @@ import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
+from datetime import datetime
+import pandas as pd
 
 # Load environment variables
 load_dotenv()
@@ -55,6 +57,25 @@ def init_db():
                   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                   FOREIGN KEY (user_id) REFERENCES users (id))''')
 
+    # Create predictions_history table
+    c.execute('''CREATE TABLE IF NOT EXISTS predictions_history
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id TEXT NOT NULL,
+                  age INTEGER,
+                  cholesterol INTEGER,
+                  resting_bp_s INTEGER,
+                  predicted_target INTEGER,
+                  probability REAL,
+                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+    # Create chat_history table for health assistant
+    c.execute('''CREATE TABLE IF NOT EXISTS chat_history
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id TEXT NOT NULL,
+                  role TEXT NOT NULL,
+                  message TEXT NOT NULL,
+                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
     conn.commit()
     conn.close()
 
@@ -91,26 +112,151 @@ def create_user(username, password):
         print(f"Error creating user: {e}")
         return False, str(e)
 
-def get_prediction_history(user_id):
-    """Get prediction history from PostgreSQL"""
+def save_blood_pressure(user_id, systolic, diastolic, heart_rate=None, notes=''):
+    """Save blood pressure reading - works with both SQLite and PostgreSQL"""
     try:
         conn = get_connection()
         if isinstance(conn, sqlite3.Connection):
-            # Fallback to SQLite if PostgreSQL not available
+            # SQLite
             c = conn.cursor()
-            c.execute("SELECT * FROM predictions_history WHERE user_id = ? ORDER BY timestamp DESC",
-                      (str(user_id),))
-            results = c.fetchall()
+            c.execute("INSERT INTO blood_pressure (user_id, systolic, diastolic, heart_rate, timestamp, notes) VALUES (?, ?, ?, ?, ?, ?)",
+                      (str(user_id), systolic, diastolic, heart_rate, datetime.now(), notes))
+            conn.commit()
             conn.close()
-            return results
         else:
             # PostgreSQL
-            c = conn.cursor(cursor_factory=RealDictCursor)
-            c.execute("SELECT * FROM predictions_history WHERE user_id = %s ORDER BY timestamp DESC",
-                      (str(user_id),))
-            results = c.fetchall()
+            c = conn.cursor()
+            c.execute("INSERT INTO blood_pressure (user_id, systolic, diastolic, heart_rate, notes) VALUES (%s, %s, %s, %s, %s)",
+                      (str(user_id), systolic, diastolic, heart_rate, notes))
+            conn.commit()
             conn.close()
-            return results
+        return True
     except Exception as e:
-        print(f"Error getting prediction history: {e}")
-        return []
+        print(f"Error saving blood pressure: {e}")
+        return False
+
+def save_activity(user_id, activity_type, duration, intensity, calories=None, notes=''):
+    """Save activity data - works with both SQLite and PostgreSQL"""
+    try:
+        if calories is None:
+            mult = {'Light': 3, 'Moderate': 5, 'Vigorous': 8}
+            calories = duration * mult.get(intensity, 5)
+
+        conn = get_connection()
+        if isinstance(conn, sqlite3.Connection):
+            # SQLite
+            c = conn.cursor()
+            c.execute("INSERT INTO activities (user_id, activity_type, duration, intensity, calories, timestamp, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                      (str(user_id), activity_type, duration, intensity, calories, datetime.now(), notes))
+            conn.commit()
+            conn.close()
+        else:
+            # PostgreSQL
+            c = conn.cursor()
+            c.execute("INSERT INTO activities (user_id, activity_type, duration, intensity, calories, notes) VALUES (%s, %s, %s, %s, %s, %s)",
+                      (str(user_id), activity_type, duration, intensity, calories, notes))
+            conn.commit()
+            conn.close()
+        return True
+    except Exception as e:
+        print(f"Error saving activity: {e}")
+        return False
+
+def save_cholesterol(user_id, total_chol=None, ldl=None, hdl=None, triglycerides=None, notes=''):
+    """Save cholesterol reading - works with both SQLite and PostgreSQL"""
+    try:
+        conn = get_connection()
+        if isinstance(conn, sqlite3.Connection):
+            # SQLite - need to create table first if it doesn't exist
+            c = conn.cursor()
+            c.execute('''CREATE TABLE IF NOT EXISTS cholesterol_readings
+                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                          user_id TEXT NOT NULL,
+                          total_cholesterol INTEGER,
+                          ldl INTEGER,
+                          hdl INTEGER,
+                          triglycerides INTEGER,
+                          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                          notes TEXT)''')
+            c.execute("INSERT INTO cholesterol_readings (user_id, total_cholesterol, ldl, hdl, triglycerides, timestamp, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                      (str(user_id), total_chol, ldl, hdl, triglycerides, datetime.now(), notes))
+            conn.commit()
+            conn.close()
+        else:
+            # PostgreSQL
+            c = conn.cursor()
+            c.execute("INSERT INTO cholesterol_readings (user_id, total_cholesterol, ldl, hdl, triglycerides, notes) VALUES (%s, %s, %s, %s, %s, %s)",
+                      (str(user_id), total_chol, ldl, hdl, triglycerides, notes))
+            conn.commit()
+            conn.close()
+        return True
+    except Exception as e:
+        print(f"Error saving cholesterol: {e}")
+        return False
+
+def save_chat_message(user_id, role, message):
+    """Save chat message - works with both SQLite and PostgreSQL"""
+    try:
+        conn = get_connection()
+        if isinstance(conn, sqlite3.Connection):
+            # SQLite
+            c = conn.cursor()
+            c.execute("INSERT INTO chat_history (user_id, role, message, timestamp) VALUES (?, ?, ?, ?)",
+                      (str(user_id), role, message, datetime.now()))
+            conn.commit()
+            conn.close()
+        else:
+            # PostgreSQL
+            c = conn.cursor()
+            c.execute("INSERT INTO chat_history (user_id, role, message) VALUES (%s, %s, %s)",
+                      (str(user_id), role, message))
+            conn.commit()
+            conn.close()
+    except Exception as e:
+        print(f"Error saving chat message: {e}")
+
+def get_weekly_bp_summary(user_id):
+    """Get weekly blood pressure summary - works with both databases"""
+    try:
+        conn = get_connection()
+        if isinstance(conn, sqlite3.Connection):
+            # SQLite - use datetime function
+            query = """
+                SELECT AVG(systolic) as systolic_avg, AVG(diastolic) as diastolic_avg
+                FROM blood_pressure
+                WHERE user_id = ? AND timestamp >= datetime('now', '-7 days')
+            """
+            df = pd.read_sql_query(query, conn, params=(str(user_id),))
+        else:
+            # PostgreSQL
+            query = """
+                SELECT AVG(systolic) as systolic_avg, AVG(diastolic) as diastolic_avg
+                FROM blood_pressure
+                WHERE user_id = %s AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '7 days'
+            """
+            df = pd.read_sql_query(query, conn, params=(str(user_id),))
+
+        conn.close()
+        return df
+    except Exception as e:
+        print(f"Error getting BP summary: {e}")
+        return pd.DataFrame()
+
+def load_chat_history(user_id, limit=20):
+    """Load chat history - works with both databases"""
+    try:
+        conn = get_connection()
+        if isinstance(conn, sqlite3.Connection):
+            # SQLite
+            query = "SELECT role, message as content FROM chat_history WHERE user_id = ? ORDER BY timestamp ASC LIMIT ?"
+            df = pd.read_sql_query(query, conn, params=(str(user_id), limit))
+        else:
+            # PostgreSQL
+            query = "SELECT role, message as content FROM chat_history WHERE user_id = %s ORDER BY timestamp ASC LIMIT %s"
+            df = pd.read_sql_query(query, conn, params=(str(user_id), limit))
+
+        conn.close()
+        return df
+    except Exception as e:
+        print(f"Error loading chat history: {e}")
+        return pd.DataFrame()
