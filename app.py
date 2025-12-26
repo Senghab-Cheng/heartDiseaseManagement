@@ -9,7 +9,7 @@ import sys
 import os
 
 # Function to convert image to base64 for HTML display
-def get_image_base64(image_path):
+def get_base64_image(image_path):
     """Convert image file to base64 string for HTML embedding"""
     try:
         with open(image_path, "rb") as image_file:
@@ -72,12 +72,12 @@ if 'username' not in st.session_state:
 
 def login_ui():
     """Handles the Login/Signup views."""
-    # Display the logo with professional styling
+    # Display the logo perfectly centered using HTML
     st.markdown("""
-    <div style="text-align: center; margin-bottom: 2rem; padding: 1rem;">
-        <img src="data:image/png;base64,{}" style="width: 150px; height: auto; margin: 0 auto;">
+    <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 2rem;">
+        <img src="data:image/png;base64,{}" style="width: 130px; height: auto;">
     </div>
-    """.format(get_image_base64("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
+    """.format(get_base64_image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
 
     st.markdown('<p class="main-header">Welcome to Cambodia Health Innovation</p>', unsafe_allow_html=True)
     st.info("Please Log In or Sign Up to access the health management system.")
@@ -138,12 +138,12 @@ if not st.session_state.logged_in:
 
 # Logout Sidebar
 with st.sidebar:
-    # Display logo in sidebar with professional styling
+    # Display logo perfectly centered in sidebar using HTML
     st.markdown("""
-    <div style="text-align: center; margin-bottom: 1.5rem; padding: 0.5rem;">
-        <img src="data:image/png;base64,{}" style="width: 120px; height: auto; margin: 0 auto; border-radius: 8px;">
+    <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 2.5rem; padding: 1rem;">
+        <img src="data:image/png;base64,{}" style="width: 110px; height: auto;">
     </div>
-    """.format(get_image_base64("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
+    """.format(get_base64_image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
 
     st.title("Heart Health Management")
     st.write(f"Logged in as: **{st.session_state.username}**")
