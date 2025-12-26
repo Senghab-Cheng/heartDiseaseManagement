@@ -17,7 +17,7 @@ from utils.database import init_db, verify_user, create_user, get_prediction_his
 # Page configuration MUST be first
 st.set_page_config(
     page_title='Heart Disease Prevention',
-    page_icon=None, # Removed icon for clean look
+    page_icon="Cambodia Health Innovations Logo - Medical Cross and Circuit.png",
     layout='wide',
     initial_sidebar_state='expanded'
 )
@@ -54,6 +54,11 @@ if 'username' not in st.session_state:
 
 def login_ui():
     """Handles the Login/Signup views."""
+    # Display the logo
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png", width=200)
+
     st.markdown('<p class="main-header">Welcome to Cambodia Health Innovation</p>', unsafe_allow_html=True)
     st.info("Please Log In or Sign Up to access the health management system.")
 
@@ -113,6 +118,8 @@ if not st.session_state.logged_in:
 
 # Logout Sidebar
 with st.sidebar:
+    # Display logo in sidebar
+    st.image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png", width=150)
     st.title("Heart Health Management")
     st.write(f"Logged in as: **{st.session_state.username}**")
     st.markdown("---")
