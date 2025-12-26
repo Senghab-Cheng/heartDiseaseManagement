@@ -72,12 +72,14 @@ if 'username' not in st.session_state:
 
 def login_ui():
     """Handles the Login/Signup views."""
-    # Display the logo perfectly centered using HTML
-    st.markdown("""
-    <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 2rem;">
-        <img src="data:image/png;base64,{}" style="width: 130px; height: auto;">
-    </div>
-    """.format(get_base64_image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
+    # Display the logo perfectly centered using Streamlit columns
+    empty1, col1, empty2 = st.columns([1, 2, 1])
+    with col1:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem;">
+            <img src="data:image/png;base64,{}" style="width: 130px; height: auto; display: block; margin: 0 auto;">
+        </div>
+        """.format(get_base64_image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
 
     st.markdown('<p class="main-header">Welcome to Cambodia Health Innovation</p>', unsafe_allow_html=True)
     st.info("Please Log In or Sign Up to access the health management system.")
@@ -138,10 +140,10 @@ if not st.session_state.logged_in:
 
 # Logout Sidebar
 with st.sidebar:
-    # Display logo perfectly centered in sidebar using HTML
+    # Display logo perfectly centered in sidebar
     st.markdown("""
-    <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 2.5rem; padding: 1rem;">
-        <img src="data:image/png;base64,{}" style="width: 110px; height: auto;">
+    <div style="text-align: center; margin-bottom: 2.5rem; padding: 1rem;">
+        <img src="data:image/png;base64,{}" style="width: 110px; height: auto; display: block; margin: 0 auto;">
     </div>
     """.format(get_base64_image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
 
