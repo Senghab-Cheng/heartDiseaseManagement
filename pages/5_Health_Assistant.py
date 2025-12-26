@@ -26,8 +26,11 @@ def process_blood_pressure(user_input, user_id):
     bp_match = re.search(r'(\d{2,3})\s*(?:/|over)\s*(\d{2,3})', user_input.lower())
     if bp_match:
         sys, dia = int(bp_match.group(1)), int(bp_match.group(2))
-        if save_blood_pressure(user_id, sys, dia):
+        success = save_blood_pressure(user_id, sys, dia)
+        if success:
             return f"Logged BP: **{sys}/{dia} mmHg**. Great job tracking your levels!"
+        else:
+            return "Failed to save BP reading. Please try again."
     return "Could not parse BP. Try: 'My BP is 120/80'"
 
 def process_activity(user_input, user_id):

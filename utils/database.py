@@ -260,3 +260,48 @@ def load_chat_history(user_id, limit=20):
     except Exception as e:
         print(f"Error loading chat history: {e}")
         return pd.DataFrame()
+
+def get_prediction_history(user_id):
+    """Get prediction history - returns data in format expected by app.py"""
+    try:
+        conn = get_connection()
+        if isinstance(conn, sqlite3.Connection):
+            # SQLite
+            query = "SELECT predicted_target, probability, timestamp FROM predictions_history WHERE user_id = ? ORDER BY timestamp DESC"
+            df = pd.read_sql_query(query, conn, params=(str(user_id),))
+        else:
+            # PostgreSQL
+            query = "SELECT predicted_target, probability, timestamp FROM predictions_history WHERE user_id = %s ORDER BY timestamp DESC"
+            df = pd.read_sql_query(query, conn, params=(str(user_id),))
+
+        conn.close()
+        # Return as list of tuples for compatibility with existing app.py code
+        if not df.empty:
+            return list(df.itertuples(index=False, name=None))
+        return []
+    except Exception as e:
+        print(f"Error getting prediction history: {e}")
+        return []
+
+def log_prediction_to_db(user_id, age, chol, bp, target, prob):
+    """Save prediction to database - works with both SQLite and PostgreSQL"""
+    try:
+        conn = get_connection()
+        if isinstance(conn, sqlite3.Connection):
+            # SQLite
+            c = conn.cursor()
+            c.execute("INSERT INTO predictions_history (user_id, age, cholesterol, resting_bp_s, predicted_target, probability, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                      (str(user_id), age, chol, bp, target, prob, datetime.now()))
+            conn.commit()
+            conn.close()
+        else:
+            # PostgreSQL
+            c = conn.cursor()
+            c.execute("INSERT INTO predictions_history (user_id, age, cholesterol, resting_bp_s, predicted_target, probability) VALUES (%s, %s, %s, %s, %s, %s)",
+                      (str(user_id), age, chol, bp, target, prob))
+            conn.commit()
+            conn.close()
+        return True
+    except Exception as e:
+        print(f"Error saving prediction: {e}")
+        return False

@@ -4,7 +4,7 @@ import numpy as np
 import os
 import joblib
 from datetime import datetime
-from utils.database import get_connection
+from utils.database import get_connection, log_prediction_to_db
 
 # --- 1. AUTHENTICATION ---
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
@@ -24,38 +24,8 @@ FEATURE_NAMES_PATH = os.path.join(MODEL_DIR, 'feature_names.pkl')
 
 def ensure_db_setup():
     """Ensures the predictions table exists in the shared database"""
-    try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS predictions_history
-                     (id SERIAL PRIMARY KEY,
-                      user_id TEXT NOT NULL, 
-                      age INTEGER, 
-                      cholesterol INTEGER, 
-                      resting_bp_s INTEGER,
-                      predicted_target INTEGER, 
-                      probability REAL,
-                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-        conn.commit()
-        c.close()
-        conn.close()
-    except Exception as e:
-        st.error(f"Database setup error: {e}")
-
-def log_prediction_to_db(user_id, age, chol, bp, target, prob):
-    """Saves assessment results to the shared database"""
-    try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute('''INSERT INTO predictions_history 
-                     (user_id, age, cholesterol, resting_bp_s, predicted_target, probability)
-                     VALUES (%s, %s, %s, %s, %s, %s)''',
-                  (str(user_id), age, chol, bp, target, prob))
-        conn.commit()
-        c.close()
-        conn.close()
-    except Exception as e:
-        st.error(f"Failed to save prediction: {e}")
+    # Table creation is now handled in database.py init_db()
+    pass
 
 def get_recent_logs(user_id):
     """Fetches history for the specific logged-in user"""
