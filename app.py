@@ -1,12 +1,23 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import os
+import base64
 from datetime import datetime, timedelta
 from utils.database import init_db, verify_user, create_user, get_prediction_history
 import sys
 import os
+
+# Function to convert image to base64 for HTML display
+def get_image_base64(image_path):
+    """Convert image file to base64 string for HTML embedding"""
+    try:
+        with open(image_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+        return encoded_string
+    except Exception as e:
+        st.error(f"Error loading image: {e}")
+        return ""
 
 # This tells Python to look in the current folder for the 'utils' module
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -34,12 +45,19 @@ st.markdown("""
         color: #1f77b4;
         text-align: center;
         margin-bottom: 2rem;
+        margin-top: 1rem;
     }
     .metric-card {
         background-color: #f0f2f6;
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 0.5rem 0;
+    }
+    .sidebar .sidebar-content {
+        padding-top: 1rem;
+    }
+    .stImage {
+        margin-bottom: 1rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -54,10 +72,12 @@ if 'username' not in st.session_state:
 
 def login_ui():
     """Handles the Login/Signup views."""
-    # Display the logo
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png", width=200)
+    # Display the logo with professional styling
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 2rem; padding: 1rem;">
+        <img src="data:image/png;base64,{}" style="width: 150px; height: auto; margin: 0 auto;">
+    </div>
+    """.format(get_image_base64("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
 
     st.markdown('<p class="main-header">Welcome to Cambodia Health Innovation</p>', unsafe_allow_html=True)
     st.info("Please Log In or Sign Up to access the health management system.")
@@ -118,8 +138,13 @@ if not st.session_state.logged_in:
 
 # Logout Sidebar
 with st.sidebar:
-    # Display logo in sidebar
-    st.image("Cambodia Health Innovations Logo - Medical Cross and Circuit.png", width=150)
+    # Display logo in sidebar with professional styling
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 1.5rem; padding: 0.5rem;">
+        <img src="data:image/png;base64,{}" style="width: 120px; height: auto; margin: 0 auto; border-radius: 8px;">
+    </div>
+    """.format(get_image_base64("Cambodia Health Innovations Logo - Medical Cross and Circuit.png")), unsafe_allow_html=True)
+
     st.title("Heart Health Management")
     st.write(f"Logged in as: **{st.session_state.username}**")
     st.markdown("---")
