@@ -309,7 +309,9 @@ def load_chat_history(user_id):
             if not df.empty:
                 df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).dt.tz_localize(None)
                 # Convert DataFrame to list of dicts with 'content' instead of 'message'
-                return df[['role', 'message']].rename(columns={'message': 'content'}).to_dict('records')
+                chat_list = df[['role', 'message']].rename(columns={'message': 'content'}).to_dict('records')
+                print(f"Loaded {len(chat_list)} chat messages for user {user_id}")
+                return chat_list
             return []
     except Exception as e:
         print(f"Error loading chat history: {e}")

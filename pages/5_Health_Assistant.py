@@ -96,8 +96,11 @@ def render():
             st.session_state.chat_history = [{"role": "assistant", "content": "Hi! I'm your Heart Assistant. How can I help you track your health today?"}]
 
     for msg in st.session_state.chat_history:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+        try:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+        except KeyError:
+            st.error("Error loading chat message. Please refresh the page.")
 
     user_input = st.chat_input("Enter your health data...")
     if user_input:
