@@ -149,7 +149,9 @@ with tab2:
             st.metric("Avg Diastolic", f"{bp_df['diastolic'].mean():.0f} mmHg", 
                       f"{trends['diastolic_change']:+.1f}" if trends else None, delta_color="inverse")
         with col3:
-            st.metric("Avg Heart Rate", f"{bp_df['heart_rate'].mean():.0f} bpm")
+            heart_rate_mean = bp_df['heart_rate'].dropna().mean()
+            avg_hr_display = f"{heart_rate_mean:.0f} bpm" if not pd.isna(heart_rate_mean) else "N/A"
+            st.metric("Avg Heart Rate", avg_hr_display)
         with col4:
             st.metric("Total Readings", len(bp_df))
         
@@ -158,12 +160,14 @@ with tab2:
         classification = classify_bp(latest['systolic'], latest['diastolic'])
         st.markdown(f"### Latest Reading - {latest['timestamp'].strftime('%b %d, %Y at %I:%M %p')}")
         
+        heart_rate_display = f"{latest['heart_rate']:.0f} bpm" if latest['heart_rate'] is not None else "Not recorded"
+        
         st.markdown(f"""
             <div style="background: linear-gradient(135deg, #1f77b4 0%, #124e78 100%); 
                         padding: 2rem; border-radius: 15px; color: white;">
                 <h2 style="margin:0;">{latest['systolic']:.0f}/{latest['diastolic']:.0f} mmHg</h2>
                 <p style="margin:0.5rem 0 0 0; font-size: 1.2rem;">{classification['category']}</p>
-                <p style="margin:0.5rem 0 0 0;">Heart Rate: {latest['heart_rate']:.0f} bpm</p>
+                <p style="margin:0.5rem 0 0 0;">Heart Rate: {heart_rate_display}</p>
             </div>
             """, unsafe_allow_html=True)
     else:
