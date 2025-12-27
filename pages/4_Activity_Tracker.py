@@ -1,15 +1,19 @@
 # pages/activity_tracker.py
 import streamlit as st
 import pandas as pd
-import sqlite3
 from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
-from utils.database import init_db
+from utils.database import init_db, save_activity, get_activity_data
 
 # Check if user is logged in
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.error("Please log in first!")
+    st.stop()
+
+# Check if user_id exists
+if 'user_id' not in st.session_state or st.session_state.user_id is None:
+    st.error("User session expired. Please log in again.")
     st.stop()
 
 st.markdown('<h1 style="text-align: center; color: #1f77b4;">Physical Activity Tracker</h1>', unsafe_allow_html=True)
@@ -56,33 +60,16 @@ def estimate_calories(activity, duration_min, weight_kg):
     calories = (met * weight_kg * duration_min) / 60
     return round(calories, 1)
 
-def get_activity_data(user_id, limit=None):
-    """Retrieve activity data from database with proper error handling"""
-    try:
-        conn = sqlite3.connect('Heart_Disease_Manager.db')
-        query = '''SELECT * FROM activities 
-                   WHERE user_id = ? 
-                   ORDER BY timestamp DESC'''
-        if limit:
-            query += f' LIMIT {limit}'
-        
-        activity_df = pd.read_sql_query(query, conn, params=(user_id,))
-        conn.close()
-        
-        if not activity_df.empty:
-            activity_df['timestamp'] = pd.to_datetime(activity_df['timestamp'])
-        return activity_df
-    except sqlite3.Error as e:
-        st.error(f"Database error: {str(e)}")
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error retrieving data: {str(e)}")
-        return pd.DataFrame()
+def get_user_activity_data(user_id):
+    """Get activity data for user"""
+    return get_activity_data(user_id)
 
 def calculate_weekly_goal_progress(activity_df):
     """Calculate progress towards WHO 150min/week goal"""
     now = datetime.now()
     week_start = now - timedelta(days=now.weekday())
+    # Reset time to start of day
+    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
     this_week = activity_df[activity_df['timestamp'] >= week_start]
     
     total_min = this_week['duration'].sum() if not this_week.empty else 0
@@ -102,20 +89,6 @@ def get_user_weight():
     if 'user_weight' not in st.session_state:
         st.session_state.user_weight = 70.0  # Default weight
     return st.session_state.user_weight
-
-def create_activities_table(conn):
-    """Create activities table if it doesn't exist"""
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS activities
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id TEXT NOT NULL,
-                  activity_type TEXT NOT NULL,
-                  duration REAL NOT NULL,
-                  intensity TEXT NOT NULL,
-                  calories REAL NOT NULL,
-                  timestamp DATETIME NOT NULL,
-                  notes TEXT)''')
-    conn.commit()
 
 # Create tabs
 tab1, tab2, tab3, tab4 = st.tabs(["Log Activity", "Dashboard", "History", "Insights"])
@@ -189,23 +162,13 @@ with tab1:
     
     if st.button("Save Activity", type="primary", use_container_width=True):
         try:
-            activity_datetime = datetime.combine(activity_date, activity_time)
-            
-            conn = sqlite3.connect('Heart_Disease_Manager.db')
-            create_activities_table(conn)
-            c = conn.cursor()
-            
-            c.execute('''INSERT INTO activities
-                         (user_id, activity_type, duration, intensity, calories, timestamp, notes)
-                         VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                      (st.session_state.user_id, activity_type, duration, intensity, 
-                       calories, activity_datetime, notes))
-            conn.commit()
-            conn.close()
-            
-            st.success(f"Activity logged: {duration} minutes of {activity_type}!")
-            st.balloons()
-            st.rerun()
+            # Save using database function
+            if save_activity(st.session_state.user_id, activity_type, duration, intensity, calories, notes):
+                st.success(f"Activity logged: {duration} minutes of {activity_type}!")
+                st.balloons()
+                st.rerun()
+            else:
+                st.error("Failed to save activity.")
         except Exception as e:
             st.error(f"Error saving activity: {str(e)}")
 
@@ -213,7 +176,7 @@ with tab1:
 with tab2:
     st.subheader("Your Activity Dashboard")
     
-    activity_df = get_activity_data(st.session_state.user_id)
+    activity_df = get_user_activity_data(st.session_state.user_id)
     
     if not activity_df.empty:
         # Weekly goal progress
@@ -331,7 +294,7 @@ with tab2:
 with tab3:
     st.subheader("Activity History & Trends")
     
-    activity_df = get_activity_data(st.session_state.user_id)
+    activity_df = get_user_activity_data(st.session_state.user_id)
     
     if not activity_df.empty:
         # Time period selector
@@ -475,7 +438,7 @@ with tab3:
 with tab4:
     st.subheader("Activity Insights & Recommendations")
     
-    activity_df = get_activity_data(st.session_state.user_id)
+    activity_df = get_user_activity_data(st.session_state.user_id)
     
     if not activity_df.empty and len(activity_df) >= 3:
         insights = []

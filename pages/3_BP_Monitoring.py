@@ -1,15 +1,19 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import plotly.express as px
-from utils.database import init_db
+from utils.database import init_db, save_blood_pressure, get_blood_pressure_data
 import warnings
 
 # Check if user is logged in
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.error("Please log in first!")
+    st.stop()
+
+# Check if user_id exists
+if 'user_id' not in st.session_state or st.session_state.user_id is None:
+    st.error("User session expired. Please log in again.")
     st.stop()
 
 st.markdown('<h1 style="text-align: center; color: #1f77b4;">Blood Pressure Monitor</h1>', unsafe_allow_html=True)
@@ -52,22 +56,7 @@ def classify_bp(systolic, diastolic):
 
 def get_bp_data(user_id, limit=None):
     """Retrieve BP data from database"""
-    try:
-        conn = sqlite3.connect('Heart_Disease_Manager.db')
-        query = '''SELECT * FROM blood_pressure 
-                   WHERE user_id = ? 
-                   ORDER BY timestamp DESC'''
-        if limit:
-            query += f' LIMIT {limit}'
-        
-        bp_df = pd.read_sql_query(query, conn, params=(user_id,))
-        conn.close()
-        
-        if not bp_df.empty:
-            bp_df['timestamp'] = pd.to_datetime(bp_df['timestamp'])
-        return bp_df
-    except Exception as e:
-        return pd.DataFrame()
+    return get_blood_pressure_data(user_id, limit)
 
 def calculate_bp_trends(bp_df):
     """Calculate BP trends and statistics"""
@@ -126,19 +115,12 @@ with tab1:
         reading_datetime = datetime.combine(reading_date, reading_time)
         classification = classify_bp(systolic, diastolic)
         
-        conn = sqlite3.connect('Heart_Disease_Manager.db')
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS blood_pressure
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, systolic REAL, 
-                      diastolic REAL, heart_rate REAL, timestamp DATETIME, notes TEXT, category TEXT)''')
-        
-        c.execute('''INSERT INTO blood_pressure 
-                     (user_id, systolic, diastolic, heart_rate, timestamp, notes, category)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                  (st.session_state.user_id, systolic, diastolic, heart_rate, 
-                   reading_datetime, notes, classification['category']))
-        conn.commit()
-        conn.close()
+        # Save to database
+        if save_blood_pressure(st.session_state.user_id, systolic, diastolic, heart_rate, notes):
+            st.success("Blood pressure reading saved successfully!")
+        else:
+            st.error("Failed to save reading.")
+            st.stop()
         
         st.markdown("---")
         st.markdown(f"### Result: {classification['category']}")

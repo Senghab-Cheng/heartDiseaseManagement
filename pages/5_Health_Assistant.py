@@ -2,26 +2,14 @@ import streamlit as st
 import pandas as pd
 import re
 from datetime import datetime
-from utils.database import (get_connection, save_blood_pressure, save_activity,
-                           save_cholesterol, save_chat_message, get_weekly_bp_summary,
-                           load_chat_history, init_db)
+from utils.database import get_connection, save_blood_pressure, save_activity, save_cholesterol, save_chat_message, load_chat_history as db_load_chat_history, get_weekly_bp_summary
 
 # --- Authentication Check ---
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.error("Please log in first!")
     st.stop()
 
-# Initialize database
-init_db()
-
 # --- Database Helper Functions ---
-
-def ensure_tables_exist():
-    """Ensure all required tables exist"""
-    # Tables are now created in init_db() in database.py
-    pass
-
-# --- Data Saving Functions ---
 
 # --- Logic Processing Functions ---
 
@@ -29,11 +17,8 @@ def process_blood_pressure(user_input, user_id):
     bp_match = re.search(r'(\d{2,3})\s*(?:/|over)\s*(\d{2,3})', user_input.lower())
     if bp_match:
         sys, dia = int(bp_match.group(1)), int(bp_match.group(2))
-        success = save_blood_pressure(user_id, sys, dia)
-        if success:
+        if save_blood_pressure(user_id, sys, dia):
             return f"Logged BP: **{sys}/{dia} mmHg**. Great job tracking your levels!"
-        else:
-            return "Failed to save BP reading. Please try again."
     return "Could not parse BP. Try: 'My BP is 120/80'"
 
 def process_activity(user_input, user_id):
@@ -56,12 +41,13 @@ def process_cholesterol(user_input, user_id):
     return "Please provide a number for your cholesterol."
 
 def process_status_check(user_id):
-    df = get_weekly_bp_summary(user_id)
-    if not df.empty and len(df) > 0 and df['systolic_avg'].iloc[0] and not pd.isna(df['systolic_avg'].iloc[0]):
-        systolic = df['systolic_avg'].iloc[0]
-        diastolic = df['diastolic_avg'].iloc[0]
-        return f"**Weekly Summary:** Your average BP is **{systolic:.0f}/{diastolic:.0f} mmHg**."
-    return "No data found for the last 7 days. Start logging to see your summary!"
+    try:
+        df = get_weekly_bp_summary(user_id)
+        if not df.empty and not df['systolic_avg'].isna().all():
+            return f"**Weekly Summary:** Your average BP is **{df['systolic_avg'].iloc[0]:.0f}/{df['diastolic_avg'].iloc[0]:.0f} mmHg**."
+        return "No data found for the last 7 days. Start logging to see your summary!"
+    except Exception as e: 
+        return f"Error fetching status: {e}"
 
 def process_user_input(user_input, user_id):
     inp = user_input.lower()
@@ -75,6 +61,12 @@ def process_user_input(user_input, user_id):
         return process_status_check(user_id)
     
     return "I can log your BP (120/80), activities (walked 20 min), or cholesterol. How can I help?"
+
+def load_chat_history(user_id):
+    try:
+        df = db_load_chat_history(user_id)
+        return df.to_dict('records') if not df.empty else []
+    except: return []
 
 # --- UI Helper ---
 
@@ -93,13 +85,11 @@ def display_guide():
 
 def render():
     st.title("Smart Health Assistant")
-    ensure_tables_exist()
     
     display_guide()
     
     if 'chat_history' not in st.session_state:
-        chat_df = load_chat_history(st.session_state.user_id)
-        st.session_state.chat_history = chat_df.to_dict('records') if not chat_df.empty else []
+        st.session_state.chat_history = load_chat_history(st.session_state.user_id)
         if not st.session_state.chat_history:
             st.session_state.chat_history = [{"role": "assistant", "content": "Hi! I'm your Heart Assistant. How can I help you track your health today?"}]
 

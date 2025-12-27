@@ -195,17 +195,17 @@ data = get_prediction_history(st.session_state.user_id)
 if data:
     try:
         # 2. Convert list of tuples to DataFrame
-        df = pd.DataFrame(data, columns=['Result', 'Probability', 'Date'])
+        df = pd.DataFrame(data, columns=['predicted_target', 'probability', 'timestamp'])
         
         # 3. Clean the Date
-        df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
+        df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None)
         
         # 4. Create the chart
         import plotly.express as px
         fig = px.line(
             df, 
-            x='Date', 
-            y='Probability',
+            x='timestamp', 
+            y='probability',
             title='Heart Disease Risk Trend',
             markers=True,
             template="plotly_white"

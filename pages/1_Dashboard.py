@@ -1,10 +1,9 @@
 # pages/dashboard.py
 import streamlit as st
 import pandas as pd
-import sqlite3
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
-from utils.database import init_db
+from utils.database import init_db, get_blood_pressure_data, get_activity_data
 
 # Check if user is logged in
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
@@ -19,35 +18,21 @@ init_db()
 
 def get_bp_data(user_id, days=30):
     """Get BP data from database"""
-    try:
-        conn = sqlite3.connect('Heart_Disease_Manager.db')
-        query = '''SELECT * FROM blood_pressure 
-                   WHERE user_id = ? AND timestamp >= ?
-                   ORDER BY timestamp DESC'''
+    df = get_blood_pressure_data(user_id)
+    if not df.empty:
         cutoff = datetime.now() - timedelta(days=days)
-        bp_df = pd.read_sql_query(query, conn, params=(user_id, cutoff))
-        conn.close()
-        if not bp_df.empty:
-            bp_df['timestamp'] = pd.to_datetime(bp_df['timestamp'])
-        return bp_df
-    except:
-        return pd.DataFrame()
+        df = df[df['timestamp'] >= cutoff]
+    return df
 
 def get_activity_data(user_id, days=30):
     """Get activity data from database"""
-    try:
-        conn = sqlite3.connect('Heart_Disease_Manager.db')
-        query = '''SELECT * FROM activities 
-                   WHERE user_id = ? AND timestamp >= ?
-                   ORDER BY timestamp DESC'''
+    # Import the database function to avoid recursion
+    from utils.database import get_activity_data as db_get_activity_data
+    df = db_get_activity_data(user_id)
+    if not df.empty:
         cutoff = datetime.now() - timedelta(days=days)
-        activity_df = pd.read_sql_query(query, conn, params=(user_id, cutoff))
-        conn.close()
-        if not activity_df.empty:
-            activity_df['timestamp'] = pd.to_datetime(activity_df['timestamp'])
-        return activity_df
-    except:
-        return pd.DataFrame()
+        df = df[df['timestamp'] >= cutoff]
+    return df
 
 # Load data
 bp_df = get_bp_data(st.session_state.user_id)
@@ -139,4 +124,4 @@ with col1:
 
 with col2:
     if st.button("Log Activity"):
-        st.switch_page("pages/3_BP_Monitoring.py")
+        st.switch_page("pages/4_Activity_Tracker.py")

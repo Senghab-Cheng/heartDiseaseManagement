@@ -4,7 +4,7 @@ import numpy as np
 import os
 import joblib
 from datetime import datetime
-from utils.database import get_connection, log_prediction_to_db
+from utils.database import get_connection, log_prediction_to_db, get_prediction_history
 
 # --- 1. AUTHENTICATION ---
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
@@ -22,20 +22,19 @@ FEATURE_NAMES_PATH = os.path.join(MODEL_DIR, 'feature_names.pkl')
 
 # --- 3. DATABASE LOGIC (POSTGRES / SUPABASE COMPATIBLE) ---
 
-def ensure_db_setup():
-    """Ensures the predictions table exists in the shared database"""
-    # Table creation is now handled in database.py init_db()
-    pass
-
 def get_recent_logs(user_id):
     """Fetches history for the specific logged-in user"""
     try:
-        conn = get_connection()
-        query = """SELECT timestamp, age, resting_bp_s, cholesterol, predicted_target, probability 
-                   FROM predictions_history WHERE user_id = %s ORDER BY timestamp DESC LIMIT 5"""
-        df = pd.read_sql_query(query, conn, params=(str(user_id),))
-        conn.close()
-        return df
+        data = get_prediction_history(user_id)
+        if data:
+            df = pd.DataFrame(data, columns=['predicted_target', 'probability', 'timestamp'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            # Add dummy columns to match expected format
+            df['age'] = None
+            df['resting_bp_s'] = None  
+            df['cholesterol'] = None
+            return df[['timestamp', 'age', 'resting_bp_s', 'cholesterol', 'predicted_target', 'probability']]
+        return pd.DataFrame()
     except:
         return pd.DataFrame()
 
@@ -57,7 +56,6 @@ def load_trained_assets():
 # --- 5. MAIN UI RENDERER ---
 def render_risk_assessment():
     st.title("Heart Disease Risk Assessment")
-    ensure_db_setup()
     
     assets = load_trained_assets()
     if not assets:
