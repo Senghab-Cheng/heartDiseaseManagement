@@ -259,7 +259,10 @@ with tab2:
                 
                 with col1:
                     st.markdown(f"**{row['activity_type']}**")
-                    st.caption(row['timestamp'].strftime('%b %d, %Y at %I:%M %p'))
+                    utc_timestamp = row['timestamp']
+                    st.caption(f"""
+                    <span class="timestamp-display" data-utc="{utc_timestamp.strftime('%Y-%m-%dT%H:%M:%S')}Z">{utc_timestamp.strftime('%b %d, %Y at %I:%M %p')} UTC</span>
+                    """, unsafe_allow_html=True)
                 
                 with col2:
                     st.markdown(f"Duration: {row['duration']:.0f} min")
@@ -638,3 +641,29 @@ with tab4:
         
         Start logging to get personalized insights!
         """)
+
+# JavaScript to convert UTC timestamps to local time
+st.markdown("""
+<script>
+// Convert all UTC timestamps to local time
+document.addEventListener('DOMContentLoaded', function() {
+    const timestampElements = document.querySelectorAll('.timestamp-display');
+    timestampElements.forEach(element => {
+        const utcString = element.getAttribute('data-utc');
+        if (utcString) {
+            const utcDate = new Date(utcString);
+            const localDate = new Date(utcDate.getTime() - utcDate.getTimezoneOffset() * 60000);
+            element.textContent = localDate.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short', 
+                day: 'numeric'
+            }) + ' at ' + localDate.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+    });
+});
+</script>
+""", unsafe_allow_html=True)

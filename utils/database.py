@@ -308,10 +308,12 @@ def load_chat_history(user_id):
             conn.close()
             if not df.empty:
                 df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).dt.tz_localize(None)
-            return df
+                # Convert DataFrame to list of dicts with 'content' instead of 'message'
+                return df[['role', 'message']].rename(columns={'message': 'content'}).to_dict('records')
+            return []
     except Exception as e:
         print(f"Error loading chat history: {e}")
-    return pd.DataFrame()
+    return []
 
 def get_weekly_bp_summary(user_id):
     try:

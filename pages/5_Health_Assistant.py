@@ -24,7 +24,12 @@ def process_blood_pressure(user_input, user_id):
 def process_activity(user_input, user_id):
     duration_match = re.search(r'(\d+)\s*(min|minute)', user_input.lower())
     duration = int(duration_match.group(1)) if duration_match else 30
-    if save_activity(user_id, "Exercise", duration, "Moderate"):
+    
+    # Simple calorie estimation: assume moderate intensity exercise, 70kg person
+    # Calories = (MET * weight * hours) = (6.0 * 70 * duration/60)
+    calories = round((6.0 * 70 * duration) / 60, 1)
+    
+    if save_activity(user_id, "Exercise", duration, "Moderate", calories):
         return f"Logged **{duration} mins** of activity! Keep moving!"
     return "Error logging activity."
 
@@ -43,8 +48,8 @@ def process_cholesterol(user_input, user_id):
 def process_status_check(user_id):
     try:
         df = get_weekly_bp_summary(user_id)
-        if not df.empty and not df['systolic_avg'].isna().all():
-            return f"**Weekly Summary:** Your average BP is **{df['systolic_avg'].iloc[0]:.0f}/{df['diastolic_avg'].iloc[0]:.0f} mmHg**."
+        if not df.empty and not df['avg_systolic'].isna().all():
+            return f"**Weekly Summary:** Your average BP is **{df['avg_systolic'].iloc[0]:.0f}/{df['avg_diastolic'].iloc[0]:.0f} mmHg**."
         return "No data found for the last 7 days. Start logging to see your summary!"
     except Exception as e: 
         return f"Error fetching status: {e}"
@@ -63,10 +68,7 @@ def process_user_input(user_input, user_id):
     return "I can log your BP (120/80), activities (walked 20 min), or cholesterol. How can I help?"
 
 def load_chat_history(user_id):
-    try:
-        df = db_load_chat_history(user_id)
-        return df.to_dict('records') if not df.empty else []
-    except: return []
+    return db_load_chat_history(user_id)
 
 # --- UI Helper ---
 

@@ -158,7 +158,13 @@ with tab2:
         st.markdown("---")
         latest = bp_df.iloc[0]
         classification = classify_bp(latest['systolic'], latest['diastolic'])
-        st.markdown(f"### Latest Reading - {latest['timestamp'].strftime('%b %d, %Y at %I:%M %p')}")
+        # Convert UTC timestamp to local time for display
+        utc_timestamp = latest['timestamp']
+        local_timestamp = utc_timestamp  # For now, keep as UTC since we can't determine user's timezone server-side
+        
+        st.markdown(f"""
+        ### Latest Reading - <span id="timestamp-display" data-utc="{utc_timestamp.strftime('%Y-%m-%dT%H:%M:%S')}Z">{utc_timestamp.strftime('%b %d, %Y at %I:%M %p')}</span>
+        """, unsafe_allow_html=True)
         
         heart_rate_display = f"{latest['heart_rate']:.0f} bpm" if latest['heart_rate'] is not None else "Not recorded"
         
@@ -225,3 +231,29 @@ with tab4:
             st.markdown("**Lifestyle Habits:**\n- 150 min/week moderate activity\n- Maintain healthy weight\n- Manage stress levels")
     else:
         st.info("Log at least 3 readings to see personalized insights.")
+
+# JavaScript to convert UTC timestamps to local time
+st.markdown("""
+<script>
+// Convert UTC timestamp in the latest reading header
+document.addEventListener('DOMContentLoaded', function() {
+    const timestampElement = document.getElementById('timestamp-display');
+    if (timestampElement) {
+        const utcString = timestampElement.getAttribute('data-utc');
+        if (utcString) {
+            const utcDate = new Date(utcString);
+            const localDate = new Date(utcDate.getTime() - utcDate.getTimezoneOffset() * 60000);
+            timestampElement.textContent = localDate.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short', 
+                day: 'numeric'
+            }) + ' at ' + localDate.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+    }
+});
+</script>
+""", unsafe_allow_html=True)
